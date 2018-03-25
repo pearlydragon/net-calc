@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
     if (string(argv[1]) == "--create_db"){
         open_connect();
     }
-    if (argc = 1){
+    if (string(argv[1]) == "--start"){
         int socket_desc , client_sock , c , read_size;
             struct sockaddr_in server , client;
             char client_message[2000];
@@ -50,8 +50,8 @@ int main(int argc, char *argv[])
             //Prepare the sockaddr_in structure
             server.sin_family = AF_INET;
             server.sin_addr.s_addr = INADDR_ANY;
-            server.sin_port = htons( 8888 );
-            return 0;
+            server.sin_port = htons( 6666 );
+
             //Bind
             if( bind(socket_desc,(struct sockaddr *)&server , sizeof(server)) < 0)
             {
