@@ -3,10 +3,11 @@
 #include <iostream>
 #include "mysql_driver.h"
 #include "mysql_connection.h"
-#include <string>
-#include<sys/socket.h>
-#include<arpa/inet.h> //inet_addr
-#include<unistd.h>    //write
+#include <string>       //for string type
+#include <sys/socket.h> //for socket
+#include <arpa/inet.h> //inet_addr
+#include <unistd.h>    //write
+#include <cstring>      //for strlen
 
 #include <cppconn/driver.h>
 #include <cppconn/exception.h>
@@ -28,8 +29,15 @@ sql::Connection *con;
 sql::Statement *stmt;
 sql::ResultSet *res;
 
+
+
 int main(int argc, char *argv[])
 {
+    map<string,int> client_actions; //map for convert chars.....
+    client_actions.insert(pair<string,int>("login", 0));
+    client_actions.insert(pair<string,int>("logout", 1));
+    client_actions.insert(pair<string,int>("password", 2));
+    client_actions.insert(pair<string,int>("calc", 3));
 
     if (string(argv[1]) == "--create_db"){
         open_connect();
@@ -76,6 +84,50 @@ int main(int argc, char *argv[])
                 return 1;
             }
             puts("Connection accepted");
+
+            //Receive a message from client
+            while( (read_size = recv(client_sock , client_message , 2000 , 0)) > 0 )
+            {
+                //Send the message back to client
+                //write(client_sock , client_message , strlen(client_message));
+                string client_command = "";
+                for (int i = 0; i < 10; i++){
+                    if (client_message[i] != ' '){
+                        client_command += client_message[i];
+                    }else{
+                        break;
+                    }
+                }
+
+                if (client_actions[client_command] != '\0'){
+
+                    switch (client_actions[client_command]) {
+                    case 0:
+                        write(client_sock , client_message , strlen("Login checking"));
+                        break;
+                    case 2:
+                        write(client_sock , client_message , strlen("Password checking..."));
+                        break;
+                    case 1:
+                        write(client_sock , client_message , strlen("Bye-bye"));
+                        break;
+                    case 3:
+                        write(client_sock , client_message , strlen("Calculating..."));
+                        break;
+                    }
+                }else write(client_sock , client_message , strlen("Wrong command! Try again."));
+
+            }
+
+            if(read_size == 0)
+            {
+                puts("Client disconnected");
+                fflush(stdout);
+            }
+            else if(read_size == -1)
+            {
+                perror("recv failed");
+            }
     }
 
     return 0;
