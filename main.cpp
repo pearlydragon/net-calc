@@ -29,7 +29,7 @@ sql::Connection *con;
 sql::Statement *stmt;
 sql::ResultSet *res;
 
-
+int server_port = 6666;
 
 int main(int argc, char *argv[])
 {
@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
             //Prepare the sockaddr_in structure
             server.sin_family = AF_INET;
             server.sin_addr.s_addr = INADDR_ANY;
-            server.sin_port = htons( 6666 );
+            server.sin_port = htons( server_port );
 
             //Bind
             if( bind(socket_desc,(struct sockaddr *)&server , sizeof(server)) < 0)
@@ -89,33 +89,25 @@ int main(int argc, char *argv[])
             while( (read_size = recv(client_sock , client_message , 2000 , 0)) > 0 )
             {
                 //Send the message back to client
-                //write(client_sock , client_message , strlen(client_message));
-                string client_command = "";
-                for (int i = 0; i < 10; i++){
-                    if (client_message[i] != ' '){
-                        client_command += client_message[i];
-                    }else{
-                        break;
-                    }
-                }
+                //write(client_sock , client_message , strlen(client_message))
+                printf ("Client send: %s\n", client_message);
+                if (client_actions.count(client_message) == 1){
 
-                if (client_actions[client_command] != '\0'){
-
-                    switch (client_actions[client_command]) {
+                    switch (client_actions[client_message]) {
                     case 0:
-                        write(client_sock , client_message , strlen("Login checking"));
+                        write(client_sock , "Login checking" , strlen("Login checking"));
                         break;
                     case 2:
-                        write(client_sock , client_message , strlen("Password checking..."));
+                        write(client_sock , "Password checking..." , strlen("Password checking..."));
                         break;
                     case 1:
-                        write(client_sock , client_message , strlen("Bye-bye"));
+                        write(client_sock , "Bye-bye" , strlen("Bye-bye"));
                         break;
                     case 3:
-                        write(client_sock , client_message , strlen("Calculating..."));
+                        write(client_sock , "Calculating..." , strlen("Calculating..."));
                         break;
                     }
-                }else write(client_sock , client_message , strlen("Wrong command! Try again."));
+                }else write(client_sock , "Wrong command! Try again." , strlen("Wrong command! Try again."));
 
             }
 

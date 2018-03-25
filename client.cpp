@@ -1,11 +1,15 @@
-#include<stdio.h> //printf
-#include<string>    //strlen
-#include<sys/socket.h>    //socket
-#include<arpa/inet.h> //inet_addr
+#include <stdio.h> //printf
+#include <string>
+#include <cstring>   //strlen
+#include <sys/socket.h>    //socket
+#include <arpa/inet.h> //inet_addr
+#include <unistd.h>    //
 
+using namespace std;
 
-string server_addr = "127.0.0.1";
-string server_port = "6666";
+char server_addr[16]= "127.0.0.1";
+int server_port = 6666;
+
 
 int main(int argc , char *argv[])
 {
@@ -19,7 +23,7 @@ int main(int argc , char *argv[])
     {
         printf("Could not create socket");
     }
-    printf("Socket created");
+    printf("Socket created\n");
 
     server.sin_addr.s_addr = inet_addr(server_addr);
     server.sin_family = AF_INET;
@@ -37,8 +41,15 @@ int main(int argc , char *argv[])
     //keep communicating with server
     while(1)
     {
+        memset(message, 0, sizeof(message)); //clean message before use
         printf("Enter command : ");
         scanf("%s" , message);
+        printf("\n");
+        if (strstr(message, "quit")){
+            printf ("Bye-bey!\n");
+            close(sock);
+            return 0;
+        }
 
         //Send some data
         if( send(sock , message , strlen(message) , 0) < 0)
@@ -54,7 +65,7 @@ int main(int argc , char *argv[])
             break;
         }
 
-        printf("Server reply :%s", server_reply);
+        printf("Server reply : %s\n", server_reply);
     }
 
     close(sock);
