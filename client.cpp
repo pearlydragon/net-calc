@@ -46,7 +46,7 @@ int main(int argc , char *argv[])
         scanf("%s" , message);
         printf("\n");
         if (strstr(message, "quit")){
-            printf ("Bye-bey!\n");
+            printf ("Bye-bye!\n");
             close(sock);
             return 0;
         }
@@ -66,6 +66,10 @@ int main(int argc , char *argv[])
         }
 
         printf("Server reply : %s\n", server_reply);
+        for (int i = 0; i < 2000; i++){
+            server_reply[i] = '\0';
+        }
+
     }
 
     close(sock);
