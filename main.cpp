@@ -19,12 +19,13 @@ using namespace std;
 void open_connect();
 int check_login(string user_login);
 int check_pass(string user_pass);
+int do_calc(string user, string pass, double f_number, double s_number, char operation, double resault);
+int check_count(string user, string pass);
 
 string db_address = "tcp://127.0.0.1:3306";
 string db_user = "net_calc";
 string db_pass = "net_calc";
 string db_schema = "net_calc";
-
 
 sql::mysql::MySQL_Driver *driver;
 sql::Connection *con;
@@ -32,7 +33,7 @@ sql::Statement *stmt;
 sql::PreparedStatement *pstmt;
 sql::ResultSet *res;
 
-int server_port = 6666;
+int server__port = 6666;
 
 int main(int argc, char *argv[])
 {
@@ -41,6 +42,12 @@ int main(int argc, char *argv[])
     client_actions.insert(pair<string,int>("logout", 1));
     client_actions.insert(pair<string,int>("password", 2));
     client_actions.insert(pair<string,int>("calc", 3));
+
+    map<char,int> math_operations; //map for convert chars.....
+    client_actions.insert(pair<string,int>("+", 0));
+    client_actions.insert(pair<string,int>("-", 1));
+    client_actions.insert(pair<string,int>("*", 2));
+    client_actions.insert(pair<string,int>("/", 3));
 
     if (string(argv[1]) == "--create_db"){
         open_connect();
@@ -65,7 +72,7 @@ int main(int argc, char *argv[])
         //Prepare the sockaddr_in structure
         server.sin_family = AF_INET;
         server.sin_addr.s_addr = INADDR_ANY;
-        server.sin_port = htons( server_port );
+        server.sin_port = htons( server__port );
 
         //Bind
         if( bind(socket_desc,(struct sockaddr *)&server , sizeof(server)) < 0)
@@ -96,11 +103,16 @@ int main(int argc, char *argv[])
         int command = 10;
         string client_login = "";
         string client_pass = "";
+        double first_number = 0;
+        double second_number = 0;
+        double resault = 0;
+        char operation;
+        int count = 0;
         while( (read_size = recv(client_sock , client_message , 2000 , 0)) > 0 )
         {
             //Send the message back to client
             //write(client_sock , client_message , strlen(client_message))
-            printf ("Client send: %s %d\n", client_message, client_actions.count(client_message));
+            printf ("Client send: %s %d\n", client_message, client_actions.count(client_message)); //for debug and see what client send to server
             if (command >= 0 && command <=3){
                 switch (command) {
                 case 0:
@@ -129,6 +141,60 @@ int main(int argc, char *argv[])
                     }
                     break;
                 case 3:
+                    for (int i = 0; i < strlen(client_message); i++){
+                        if (isdigit( client_message[i])){
+                            if (first_number == 0){
+                                first_number = atof(client_message);
+                            }else{
+                                if (second_number == 0){
+                                    second_number == atof(client_message);
+                                    switch (math_operations[operation]) {
+                                    case 0:
+                                        resault = first_number + second_number;
+                                        break;
+                                    case 1:
+                                        resault = first_number - second_number;
+                                        break;
+                                    case 2:
+                                        resault = first_number * second_number;
+                                        break;
+                                    case 3:
+                                        resault = first_number / second_number;
+                                        break;
+                                    }
+                                }else{
+                                    first_number = resault;
+                                    second_number = atof(client_message);
+                                    switch (math_operations[operation]) {
+                                    case 0:
+                                        resault = first_number + second_number;
+                                        break;
+                                    case 1:
+                                        resault = first_number - second_number;
+                                        break;
+                                    case 2:
+                                        resault = first_number * second_number;
+                                        break;
+                                    case 3:
+                                        resault = first_number / second_number;
+                                        break;
+                                    }
+                                }
+                            }
+                        }else{
+                            if (math_operations.count(client_message[0]) !=1){
+                                write(client_sock , "Wrong operation or value - try again", strlen("Wrong operation or value. Try again"));
+                            }
+                        }
+                    }
+                    if (check_count(client_login, client_pass) == 1){
+                        if (do_calc(client_login, client_pass, first_number, second_number, operation, resault) == 1){
+                            command = 10;
+                            string temp = "Resault: "+to_string(resault);
+                            write(client_sock , temp.c_str(), temp.length());
+                            continue;
+                        }
+                    }
                     break;
                 }
             }
@@ -150,9 +216,15 @@ int main(int argc, char *argv[])
                 case 1:
                     write(client_sock , "Bye-bye" , strlen("Bye-bye"));
                     close(client_sock);
+
                     break;
                 case 3:
-                    write(client_sock , "Calculating..." , strlen("Calculating..."));
+                    if (client_login == "" || client_pass == ""){
+                        write(client_sock , "Enter your login/pass before!" , strlen("Enter your login/pass before!"));
+                    }else{
+                        write(client_sock , "Calculating..." , strlen("Calculating..."));
+                        command = 3;
+                    }
                     break;
                 }
             }else write(client_sock , "Wrong command! Try again." , strlen("Wrong command! Try again."));
@@ -190,6 +262,7 @@ void open_connect(){
         stmt->execute("DROP TABLE IF EXISTS users");
         stmt->execute("CREATE TABLE users(id INT, user TEXT, pass TEXT, count INT)");
         stmt->execute("INSERT INTO users(id, user, pass, count) VALUES (0, 'test0', 'test0', 10)");
+        stmt->execute("COMMIT");
         stmt->execute("DROP TABLE IF EXISTS log");
         stmt->execute("CREATE TABLE log(user_id INT, date DATE, action TEXT, resault TEXT)");
         delete res;
@@ -277,4 +350,68 @@ int check_pass(string user_pass){
       return 0;
     }
 
+}
+
+int do_calc(string user, string pass, double f_number, double s_number, char operation , double resault){
+    string text_operation = '"'+to_string(f_number)+operation+to_string(s_number)+'"';
+    string string_login = '"'+user+'"';
+    string string_password = '"'+pass+'"';
+    try {
+
+        /* Create a connection */
+        driver = sql::mysql::get_mysql_driver_instance();
+        con = driver->connect(db_address, db_user, db_pass);
+        /* Connect to the MySQL test database */
+        con->setSchema(db_schema);
+        cout << "Enter\n" << endl;
+        stmt = con->createStatement();
+        stmt->execute("USE net_calc");
+        res = stmt->executeQuery("SELECT id FROM users WHERE user = "+string_login+" AND password = "+string_password);
+        int userid = res->getInt("id");
+        res = stmt->executeQuery("INSERT INTO logs (user_id, date, action, resault) ("+to_string(userid)+",now(),"+text_operation+','+to_string(resault)+")");
+        res = stmt->executeQuery("COMMIT");
+        printf ("Rows return: %d\n", res->rowsCount());
+        //
+        return 0;
+
+    } catch (sql::SQLException &e) {
+      cout << "# ERR: SQLException in " << __FILE__;
+      cout << "(" << __FUNCTION__ << ") on line " << __LINE__ << endl;
+      cout << "# ERR: " << e.what();
+      cout << " (MySQL error code: " << e.getErrorCode();
+      cout << ", SQLState: " << e.getSQLState() << " )" << endl;
+      return 0;
+    }
+
+}
+
+int check_count(string user, string pass){
+    string string_login = '"'+user+'"';
+    string string_password = '"'+pass+'"';
+
+    try {
+
+        /* Create a connection */
+        driver = sql::mysql::get_mysql_driver_instance();
+        con = driver->connect(db_address, db_user, db_pass);
+        /* Connect to the MySQL test database */
+        con->setSchema(db_schema);
+        cout << "Enter\n" << endl;
+        stmt = con->createStatement();
+        stmt->execute("USE net_calc");
+        res = stmt->executeQuery("SELECT count FROM users WHERE user = "+string_login+" AND password = "+string_password);
+        int count = res->getInt("count");
+        printf ("Count return: %d\n", count);
+        //
+        if (count = 0) return 1;
+        else return 0;
+
+    } catch (sql::SQLException &e) {
+      cout << "# ERR: SQLException in " << __FILE__;
+      cout << "(" << __FUNCTION__ << ") on line " << __LINE__ << endl;
+      cout << "# ERR: " << e.what();
+      cout << " (MySQL error code: " << e.getErrorCode();
+      cout << ", SQLState: " << e.getSQLState() << " )" << endl;
+      return 0;
+    }
 }
