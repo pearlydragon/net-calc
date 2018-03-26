@@ -141,9 +141,9 @@ int main(int argc, char *argv[])
                     }
                     break;
                 case 3:
-                    printf ("first: %d, second: %d, result: %d", first_number, second_number, resault);
+                    printf ("%d: first: %f, second: %f, result: %f, %d\n", __LINE__, first_number, second_number, resault, isdigit( client_message[0]));
                     //for (int i = 0; i < strlen(client_message); i++){
-                        if (isdigit( client_message[1])){
+                        if (isdigit( client_message[0])){
                             if (first_number == 0){
                                 first_number = atof(client_message);
                             }else{
@@ -152,6 +152,7 @@ int main(int argc, char *argv[])
                                     switch (math_operations[operation]) {
                                     case 0:
                                         resault = first_number + second_number;
+                                        printf ("%d: first: %f, second: %f, result: %f\n", __LINE__, first_number, second_number, resault);
                                         break;
                                     case 1:
                                         resault = first_number - second_number;
@@ -179,6 +180,7 @@ int main(int argc, char *argv[])
                                     switch (math_operations[operation]) {
                                     case 0:
                                         resault = first_number + second_number;
+                                        printf ("%d: first: %f, second: %f, result: %f\n", __LINE__, first_number, second_number, resault);
                                         break;
                                     case 1:
                                         resault = first_number - second_number;
@@ -237,6 +239,7 @@ int main(int argc, char *argv[])
                         write(client_sock , "Enter your login/pass before!" , strlen("Enter your login/pass before!"));
                     }else{
                         command = 3;
+                        resault = 0;
                         write(client_sock , "Calculating..." , strlen("Calculating..."));
 
                     }
@@ -341,7 +344,7 @@ int check_pass(string user_pass){
         stmt = con->createStatement();
         stmt->execute("USE net_calc");
         res = stmt->executeQuery("SELECT pass FROM users WHERE pass = "+user_pass);
-        printf ("Rows return: %d\n", res->rowsCount());
+        printf ("%d: Rows return: %d\n", __LINE__, res->rowsCount());
         //
         if (res->rowsCount() == 1){
             delete res;
@@ -380,17 +383,20 @@ int do_calc(string user, string pass, double f_number, double s_number, char ope
         cout << "Enter\n" << endl;
         stmt = con->createStatement();
         stmt->execute("USE net_calc");
-        stmt->executeQuery("SELECT id FROM users WHERE user = "+string_login+" AND password = "+string_password);
+        stmt->executeQuery("SELECT id FROM users WHERE user = "+string_login+" AND pass = "+string_password);
         int userid = res->getInt("id");
         stmt->executeQuery("INSERT INTO logs (user_id, date, action, resault) ("+to_string(userid)+",now(),"+text_operation+','+to_string(resault)+")");
         stmt->executeQuery("COMMIT");
-        res = stmt->executeQuery("SELECT count FROM users WHERE user = "+string_login+" AND password = "+string_password);
+        res = stmt->executeQuery("SELECT count FROM users WHERE user = "+string_login+" AND pass = "+string_password);
         int count = res->getInt("count");
         count--;
         stmt->executeQuery("UPDATE users SET count = "+count);
         stmt->executeQuery("COMMIT");
-        printf ("Rows return: %d\n", res->rowsCount());
+        printf ("%d: Rows return: %d\n", __LINE__, res->rowsCount());
         //
+        delete res;
+        delete stmt;
+        delete con;
         return 0;
 
     } catch (sql::SQLException &e) {
@@ -415,13 +421,15 @@ int check_count(string user, string pass){
         con = driver->connect(db_address, db_user, db_pass);
         /* Connect to the MySQL test database */
         con->setSchema(db_schema);
-        cout << "Enter\n" << endl;
         stmt = con->createStatement();
         stmt->execute("USE net_calc");
-        res = stmt->executeQuery("SELECT count FROM users WHERE user = "+string_login+" AND password = "+string_password);
-        int count = res->getInt("count");
-        printf ("Count return: %d\n", count);
+        res = stmt->executeQuery("SELECT * FROM users WHERE user = "+string_login+" AND pass = "+string_password);
+        int count = res->getInt(3);
+        printf ("%d: Count return: %d\n", __LINE__, count);
         //
+        delete res;
+        delete stmt;
+        delete con;
         if (count = 0) return 1;
         else return 0;
 
