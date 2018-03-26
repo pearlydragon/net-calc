@@ -113,12 +113,12 @@ int main(int argc, char *argv[])
             //Send the message back to client
             //write(client_sock , client_message , strlen(client_message))
             printf ("Client send: %s %d\n", client_message, client_actions.count(client_message)); //for debug and see what client send to server
+            printf ("Current command : %d\n", command);
             if (command >= 0 && command <=3){
                 switch (command) {
                 case 0:
                     client_login = client_message;
                     if (check_login(client_login)){
-                        cout << "Enter good" << endl;
                         command = 10;
                         write(client_sock , "Login: OK" , strlen("Login: OK"));
                         continue;
@@ -134,15 +134,16 @@ int main(int argc, char *argv[])
                     if (check_pass(client_pass) == 1){
                         command = 10;
                         write(client_sock , "Password: OK" , strlen("Password: OK"));
-                        continue;
+                        //continue;
                     }else{
                         client_login = "";
                         write(client_sock , "Password: FAIL. Try again." , strlen("Password: FAIL. Try again."));
                     }
                     break;
                 case 3:
-                    for (int i = 0; i < strlen(client_message); i++){
-                        if (isdigit( client_message[i])){
+                    printf ("first: %d, second: %d, result: %d", first_number, second_number, resault);
+                    //for (int i = 0; i < strlen(client_message); i++){
+                        if (isdigit( client_message[1])){
                             if (first_number == 0){
                                 first_number = atof(client_message);
                             }else{
@@ -162,6 +163,16 @@ int main(int argc, char *argv[])
                                         resault = first_number / second_number;
                                         break;
                                     }
+
+                                    if (check_count(client_login, client_pass) == 1){
+                                        if (do_calc(client_login, client_pass, first_number, second_number, operation, resault) == 1){
+                                            command = 10;
+                                            string temp = "Resault: "+to_string(resault);
+                                            write(client_sock , temp.c_str(), temp.length());
+                                            continue;
+                                        }
+                                    }
+
                                 }else{
                                     first_number = resault;
                                     second_number = atof(client_message);
@@ -179,6 +190,16 @@ int main(int argc, char *argv[])
                                         resault = first_number / second_number;
                                         break;
                                     }
+
+                                    if (check_count(client_login, client_pass) == 1){
+                                        if (do_calc(client_login, client_pass, first_number, second_number, operation, resault) == 1){
+                                            command = 10;
+                                            string temp = "Resault: "+to_string(resault);
+                                            write(client_sock , temp.c_str(), temp.length());
+                                            continue;
+                                        }
+                                    }
+
                                 }
                             }
                         }else{
@@ -186,15 +207,8 @@ int main(int argc, char *argv[])
                                 write(client_sock , "Wrong operation or value - try again", strlen("Wrong operation or value. Try again"));
                             }
                         }
-                    }
-                    if (check_count(client_login, client_pass) == 1){
-                        if (do_calc(client_login, client_pass, first_number, second_number, operation, resault) == 1){
-                            command = 10;
-                            string temp = "Resault: "+to_string(resault);
-                            write(client_sock , temp.c_str(), temp.length());
-                            continue;
-                        }
-                    }
+                    //}
+
                     break;
                 }
             }
@@ -202,15 +216,15 @@ int main(int argc, char *argv[])
 
                 switch (client_actions[client_message]) {
                 case 0:
-                    write(client_sock , "Login checking" , strlen("Login checking"));
                     command = 0;
+                    write(client_sock , "Login checking" , strlen("Login checking"));
                     break;
                 case 2:
                     if (client_login == ""){
                         write(client_sock , "Enter your login before!" , strlen("Enter your login before!"));
                     }else{
-                        write(client_sock , "Password checking..." , strlen("Password checking..."));
                         command = 2;
+                        write(client_sock , "Password checking..." , strlen("Password checking..."));
                     }
                     break;
                 case 1:
@@ -222,8 +236,9 @@ int main(int argc, char *argv[])
                     if (client_login == "" || client_pass == ""){
                         write(client_sock , "Enter your login/pass before!" , strlen("Enter your login/pass before!"));
                     }else{
-                        write(client_sock , "Calculating..." , strlen("Calculating..."));
                         command = 3;
+                        write(client_sock , "Calculating..." , strlen("Calculating..."));
+
                     }
                     break;
                 }
@@ -323,7 +338,6 @@ int check_pass(string user_pass){
         con = driver->connect(db_address, db_user, db_pass);
         /* Connect to the MySQL test database */
         con->setSchema(db_schema);
-        cout << "Enter\n" << endl;
         stmt = con->createStatement();
         stmt->execute("USE net_calc");
         res = stmt->executeQuery("SELECT pass FROM users WHERE pass = "+user_pass);
@@ -366,10 +380,15 @@ int do_calc(string user, string pass, double f_number, double s_number, char ope
         cout << "Enter\n" << endl;
         stmt = con->createStatement();
         stmt->execute("USE net_calc");
-        res = stmt->executeQuery("SELECT id FROM users WHERE user = "+string_login+" AND password = "+string_password);
+        stmt->executeQuery("SELECT id FROM users WHERE user = "+string_login+" AND password = "+string_password);
         int userid = res->getInt("id");
-        res = stmt->executeQuery("INSERT INTO logs (user_id, date, action, resault) ("+to_string(userid)+",now(),"+text_operation+','+to_string(resault)+")");
-        res = stmt->executeQuery("COMMIT");
+        stmt->executeQuery("INSERT INTO logs (user_id, date, action, resault) ("+to_string(userid)+",now(),"+text_operation+','+to_string(resault)+")");
+        stmt->executeQuery("COMMIT");
+        res = stmt->executeQuery("SELECT count FROM users WHERE user = "+string_login+" AND password = "+string_password);
+        int count = res->getInt("count");
+        count--;
+        stmt->executeQuery("UPDATE users SET count = "+count);
+        stmt->executeQuery("COMMIT");
         printf ("Rows return: %d\n", res->rowsCount());
         //
         return 0;
