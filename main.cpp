@@ -423,8 +423,11 @@ int check_count(string user, string pass){
         con->setSchema(db_schema);
         stmt = con->createStatement();
         stmt->execute("USE net_calc");
-        res = stmt->executeQuery("SELECT * FROM users WHERE user = "+string_login+" AND pass = "+string_password);
-        int count = res->getInt(3);
+        res = stmt->executeQuery("SELECT count FROM users WHERE user = "+string_login+" AND pass = "+string_password);
+        if (res->rowsCount() > 0){
+            cout << "All good" << res->getInt("count") << endl;
+        }else cout << "Somthink goes wrong(" << endl;
+        int count = res->getInt("count");
         printf ("%d: Count return: %d\n", __LINE__, count);
         //
         delete res;
