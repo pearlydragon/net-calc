@@ -1,4 +1,0 @@
-/home/defender/projects/net-calc/CMakeFiles/edit_cache.dir
-/home/defender/projects/net-calc/CMakeFiles/rebuild_cache.dir
-/home/defender/projects/net-calc/CMakeFiles/client.dir
-/home/defender/projects/net-calc/CMakeFiles/server.dir
