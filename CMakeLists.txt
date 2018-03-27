@@ -1,6 +1,8 @@
 project(net-calc)
+set(CMAKE_CPP_FLAGS "${CMAKE_CPP_FLAGS}" -I/usr/include -I/usr/boost/include)
+set(CMAKE_LD_FLAGS "${CMAKE_LD_FLAGS}" -L/usr/lib -L/usr/mysql/lib)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 cmake_minimum_required(VERSION 2.8)
 aux_source_directory(. SRC_LIST)
-add_executable(${PROJECT_NAME} ${SRC_LIST})
-
+add_executable(server server.cpp)
+add_executable(client client.cpp)
