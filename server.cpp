@@ -177,11 +177,11 @@ int main(int argc, char *argv[])
                                     if (check_count(client_login, client_pass) == 0){
                                         if (do_calc(client_login, client_pass, first_number, second_number, operation[0], resault) == 0){
                                             command = 10;
+                                            string temp = "Resault: "+to_string(resault);
                                             first_number = 0;
                                             second_number = 0;
                                             resault = 0;
                                             operation = "";
-                                            string temp = "Resault: "+to_string(resault);
                                             write(client_sock , temp.c_str(), temp.length());
                                             for (int i = 0; i < 20; i++){
                                                 client_message[i] = '\0';
