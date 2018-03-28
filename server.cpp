@@ -43,12 +43,6 @@ int main(int argc, char *argv[])
     client_actions.insert(pair<string,int>("password", 2));
     client_actions.insert(pair<string,int>("calc", 3));
 
-    map<string,int> math_operations; //map for convert chars.....
-    client_actions.insert(pair<string,int>("+", 0));
-    client_actions.insert(pair<string,int>("-", 1));
-    client_actions.insert(pair<string,int>("*", 2));
-    client_actions.insert(pair<string,int>("/", 3));
-
     if (string(argv[1]) == "--create_db"){
         open_connect();
     }
@@ -107,7 +101,6 @@ int main(int argc, char *argv[])
         double second_number = 0;
         double resault = 0;
         string operation;
-        int count = 0;
         while( (read_size = recv(client_sock , client_message , 2000 , 0)) > 0 )
         {
             printf ("Current command: \t%d\n", command);
@@ -126,6 +119,9 @@ int main(int argc, char *argv[])
                 }else{
                     client_login = "";
                     write(client_sock , "Login: FAIL. Try again." , strlen("Login: FAIL. Try again."));
+                    for (int i = 0; i < 200; i++){
+                        client_message[i] = '\0';
+                    }
                 }
                 break;
             case 1:
@@ -142,6 +138,9 @@ int main(int argc, char *argv[])
                 }else{
                     client_login = "";
                     write(client_sock , "Password: FAIL. Try again." , strlen("Password: FAIL. Try again."));
+                    for (int i = 0; i < 200; i++){
+                        client_message[i] = '\0';
+                    }
                 }
                 break;
             case 3:
@@ -161,14 +160,35 @@ int main(int argc, char *argv[])
                             if (operation == "-")resault = first_number - second_number;
                             if (operation == "*")resault = first_number * second_number;
                             if (operation == "/")resault = first_number / second_number;
-                            printf ("%d: first: %f, operation %c second: %f, result: %f\n", __LINE__, first_number, operation[0], second_number, resault);
                             if (check_count(client_login, client_pass) == 0){
                                 if (do_calc(client_login, client_pass, first_number, second_number, operation[0], resault) == 0){
-                                    command = 10;
                                     string temp = "Resault: "+to_string(resault);
-                                    first_number = 0;
-                                    second_number = 0;
-                                    resault = 0;
+                                    operation = "";
+                                    write(client_sock , temp.c_str(), temp.length());
+                                    for (int i = 0; i < 200; i++){
+                                        client_message[i] = '\0';
+                                    }
+                                    continue;
+                                }
+                            }else{
+                                command = 10;
+                                write(client_sock , "No more operations permited", strlen("No more operations permited"));
+                                for (int i = 0; i < 200; i++){
+                                    client_message[i] = '\0';
+                                }
+                                continue;
+                            }
+                        }
+                        else{
+                            first_number = resault;
+                            second_number = atof(client_message);
+                            if (operation == "+")resault = first_number + second_number;
+                            if (operation == "-")resault = first_number - second_number;
+                            if (operation == "*")resault = first_number * second_number;
+                            if (operation == "/")resault = first_number / second_number;
+                            if (check_count(client_login, client_pass) == 0){
+                                if (do_calc(client_login, client_pass, first_number, second_number, operation[0], resault) == 0){
+                                    string temp = "Resault: "+to_string(resault);
                                     operation = "";
                                     write(client_sock , temp.c_str(), temp.length());
                                     for (int i = 0; i < 200; i++){
@@ -187,6 +207,7 @@ int main(int argc, char *argv[])
                         }
                     }
                 }else{
+                    cout << client_message << endl;
                     if (client_message[0] == '+' || client_message[0] == '-' || client_message[0] == '*' || client_message[0] == '/'){
                         operation = client_message[0];
                         for (int i = 0; i < 200; i++){
@@ -195,11 +216,23 @@ int main(int argc, char *argv[])
                         write(client_sock , "Enter next value", strlen("Enter next value"));
                         continue;
                     }else{
-                        write(client_sock , "Wrong operation or value - try again", strlen("Wrong operation or value. Try again"));
-                        for (int i = 0; i < 200; i++){
-                            client_message[i] = '\0';
+                        if (!strcmp(client_message, "end")){
+                            command = 10;
+                            write(client_sock , "Calculating completed", strlen("Calculating completed"));
+                            first_number = 0;
+                            second_number = 0;
+                            resault = 0;
+                            for (int i = 0; i < 200; i++){
+                                client_message[i] = '\0';
+                            }
+                            continue;
+                        }else{
+                            write(client_sock , "Wrong operation or value - try again", strlen("Wrong operation or value. Try again"));
+                            for (int i = 0; i < 200; i++){
+                                client_message[i] = '\0';
+                            }
+                            continue;
                         }
-                        continue;
                     }
                 }
                 break;
@@ -231,10 +264,8 @@ int main(int argc, char *argv[])
                 case 1:
                     write(client_sock , "Bye-bye" , strlen("Bye-bye"));
                     close(client_sock);
-
                     break;
                 case 3:
-
                     if (client_login == "" || client_pass == ""){
                         write(client_sock , "Enter your login/pass before!" , strlen("Enter your login/pass before!"));
                         for (int i = 0; i < 200; i++){
@@ -285,7 +316,6 @@ void open_connect(){
         con->setSchema(db_schema);
 
         stmt = con->createStatement();
-        stmt->execute("USE net_calc");
         stmt->execute("DROP TABLE IF EXISTS users");
         stmt->execute("CREATE TABLE users(id INT, user TEXT, pass TEXT, count INT, PRIMARY KEY(id))");
         stmt->execute("INSERT INTO users(id, user, pass, count) VALUES (0, 'test0', 'test0', 10)");
@@ -316,10 +346,6 @@ int check_login(string user_login){
         stmt = con->createStatement();
         res = stmt->executeQuery("SELECT user FROM users WHERE user = "+user_login);
         //
-
-        //if(!res->next())
-        //  printf ("%d: result empty/wrong", __LINE__); //Handle Failiure
-        cout << "Enter " << res->rowsCount() << endl;
         if (res->rowsCount() == 1){
             delete res;
             delete stmt;
@@ -346,7 +372,6 @@ int check_login(string user_login){
 int check_pass(string user_pass){
     user_pass = '"'+user_pass+'"';
     try {
-
         /* Create a connection */
         driver = sql::mysql::get_mysql_driver_instance();
         con = driver->connect(db_address, db_user, db_pass);
@@ -356,8 +381,6 @@ int check_pass(string user_pass){
         res = stmt->executeQuery("SELECT pass FROM users WHERE pass = "+user_pass);
         printf ("%d: Rows return: %d\n", __LINE__, res->rowsCount());
         //
-        if(!res->next())
-          printf ("%d: result empty/wrong", __LINE__); //Handle Failiure
         if (res->rowsCount() == 1){
             delete res;
             delete stmt;
@@ -387,14 +410,12 @@ int do_calc(string user, string pass, double f_number, double s_number, char ope
     string string_password = '"'+pass+'"';
     string string_resault = '"'+to_string(resault)+'"';
     try {
-
         /* Create a connection */
         driver = sql::mysql::get_mysql_driver_instance();
         con = driver->connect(db_address, db_user, db_pass);
         /* Connect to the MySQL test database */
         con->setSchema(db_schema);
         stmt = con->createStatement();
-        stmt->execute("USE net_calc");
 
         res = stmt->executeQuery("SELECT id FROM users WHERE user = "+string_login+" AND pass = "+string_password);
         if(!res->next())
@@ -417,7 +438,6 @@ int do_calc(string user, string pass, double f_number, double s_number, char ope
         count--;
         stmt->execute("UPDATE users SET count = "+to_string(count));
         stmt->execute("COMMIT");
-        //printf ("%d: Rows return: %d\n", __LINE__, res->rowsCount());
         //
         delete res;
         delete stmt;
@@ -438,22 +458,18 @@ int do_calc(string user, string pass, double f_number, double s_number, char ope
 int check_count(string user, string pass){
     string string_login = '"'+user+'"';
     string string_password = '"'+pass+'"';
-
     try {
-
         /* Create a connection */
         driver = sql::mysql::get_mysql_driver_instance();
         con = driver->connect(db_address, db_user, db_pass);
         /* Connect to the MySQL test database */
         con->setSchema(db_schema);
         stmt = con->createStatement();
-        stmt->execute("USE net_calc");
         string query = "SELECT * FROM users WHERE user = "+string_login+" AND pass = "+string_password;
         res = stmt->executeQuery(query);
         if(!res->next())
           printf ("%d: result empty/wrong", __LINE__); //Handle Failiure
         int count = res->getInt("count");
-        printf ("%s %d: Count return: %d\n", __FUNCTION__,__LINE__, count);
         //
         delete res;
         delete stmt;
