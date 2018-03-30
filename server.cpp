@@ -8,6 +8,7 @@
 #include <arpa/inet.h> //inet_addr
 #include <unistd.h>    //write
 #include <cstring>      //for strlen
+#include <pthread.h>
 
 #include <cppconn/driver.h>
 #include <cppconn/exception.h>
@@ -21,6 +22,7 @@ int check_login(string user_login);
 int check_pass(string user_pass);
 int do_calc(string user, string pass, double f_number, double s_number, char operation, double resault);
 int check_count(string user, string pass);
+void *connection_handler(void *);
 
 string db_address = "tcp://127.0.0.1:3306";
 string db_user = "net_calc";
@@ -35,25 +37,22 @@ sql::ResultSet *res;
 
 int server__port = 6666;
 
-int main(int argc, char *argv[])
-{
-    map<string,int> client_actions; //map for convert chars.....
-    client_actions.insert(pair<string,int>("login", 0));
-    client_actions.insert(pair<string,int>("logout", 1));
-    client_actions.insert(pair<string,int>("password", 2));
-    client_actions.insert(pair<string,int>("calc", 3));
+int main(int argc, char *argv[]){
 
     if (string(argv[1]) == "--create_db"){
         open_connect();
     }
     if (string(argv[1]) == "--start"){
-        //if (string(argv[2]) == "-p"){
-        //    server_port = atoi(argv[3]);
-        //}
+        if (argc > 2){
+            for (int i = 2; i < argc; i++){
+                if (string(argv[2]) == "-p"){
+                    server__port = atoi(argv[3]);
+                }
+            }
+        }
 
-        int socket_desc , client_sock , c , read_size;
+        int socket_desc , client_sock , c , read_size, *new_sock;
         struct sockaddr_in server , client;
-        char client_message[2000];
 
         //Create socket
         socket_desc = socket(AF_INET , SOCK_STREAM , 0);
@@ -85,212 +84,30 @@ int main(int argc, char *argv[])
         c = sizeof(struct sockaddr_in);
 
         //accept connection from an incoming client
-        client_sock = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c);
+        while( client_sock = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c) ){
+
+            puts("Connection accepted");
+
+            pthread_t sniffer_thread;
+            new_sock = new int;
+            *new_sock = client_sock;
+
+            if( pthread_create( &sniffer_thread , NULL ,  connection_handler , (void*) new_sock) < 0)
+            {
+                perror("could not create thread");
+                return 1;
+            }
+
+            //Now join the thread , so that we dont terminate before the thread
+            pthread_join( sniffer_thread , NULL);
+            puts("Handler assigned");
+
+        }
         if (client_sock < 0)
         {
             perror("accept failed");
             return 1;
         }
-        puts("Connection accepted");
-
-        //Receive a message from client
-        int command = 10;
-        string client_login = "";
-        string client_pass = "";
-        double first_number = 0;
-        double second_number = 0;
-        double resault = 0;
-        string operation;
-        while( (read_size = recv(client_sock , client_message , 2000 , 0)) > 0 )
-        {
-            printf ("Current command: \t%d\n", command);
-            printf ("Client send: \t%s \t%d\n", client_message, client_actions.count(client_message)); //for debug and see what client send to server
-
-            switch (command) {
-            case 0:
-                client_login = client_message;
-                if (check_login(client_login)){
-                    command = 10;
-                    write(client_sock , "Login: OK" , strlen("Login: OK"));
-                    for (int i = 0; i < 200; i++){
-                        client_message[i] = '\0';
-                    }
-                    continue;
-                }else{
-                    client_login = "";
-                    write(client_sock , "Login: FAIL. Try again." , strlen("Login: FAIL. Try again."));
-                    for (int i = 0; i < 200; i++){
-                        client_message[i] = '\0';
-                    }
-                }
-                break;
-            case 1:
-                break;
-            case 2:
-                client_pass = client_message;
-                if (check_pass(client_pass) == 1){
-                    command = 10;
-                    write(client_sock , "Password: OK" , strlen("Password: OK"));
-                    for (int i = 0; i < 200; i++){
-                        client_message[i] = '\0';
-                    }
-                    continue;
-                }else{
-                    client_login = "";
-                    write(client_sock , "Password: FAIL. Try again." , strlen("Password: FAIL. Try again."));
-                    for (int i = 0; i < 200; i++){
-                        client_message[i] = '\0';
-                    }
-                }
-                break;
-            case 3:
-                printf ("%d: first: %f, operation %c second: %f, result: %f, %d\n", __LINE__, first_number, operation[0], second_number, resault, isdigit(client_message[0]));
-                if (isdigit( client_message[0]) || (client_message[0] == '-' && isdigit(client_message[1]))){
-                    if (first_number == 0){
-                        first_number = atof(client_message);
-                        for (int i = 0; i < 200; i++){
-                            client_message[i] = '\0';
-                        }
-                         write(client_sock , "Enter operation" , strlen("Enter operation"));
-                        continue;
-                    }else{
-                        if (second_number == 0){
-                            second_number = atof(client_message);
-                            if (operation == "+")resault = first_number + second_number;
-                            if (operation == "-")resault = first_number - second_number;
-                            if (operation == "*")resault = first_number * second_number;
-                            if (operation == "/")resault = first_number / second_number;
-                            if (check_count(client_login, client_pass) == 0){
-                                if (do_calc(client_login, client_pass, first_number, second_number, operation[0], resault) == 0){
-                                    string temp = "Resault: "+to_string(resault);
-                                    operation = "";
-                                    write(client_sock , temp.c_str(), temp.length());
-                                    for (int i = 0; i < 200; i++){
-                                        client_message[i] = '\0';
-                                    }
-                                    continue;
-                                }
-                            }else{
-                                command = 10;
-                                write(client_sock , "No more operations permited", strlen("No more operations permited"));
-                                for (int i = 0; i < 200; i++){
-                                    client_message[i] = '\0';
-                                }
-                                continue;
-                            }
-                        }
-                        else{
-                            first_number = resault;
-                            second_number = atof(client_message);
-                            if (operation == "+")resault = first_number + second_number;
-                            if (operation == "-")resault = first_number - second_number;
-                            if (operation == "*")resault = first_number * second_number;
-                            if (operation == "/")resault = first_number / second_number;
-                            if (check_count(client_login, client_pass) == 0){
-                                if (do_calc(client_login, client_pass, first_number, second_number, operation[0], resault) == 0){
-                                    string temp = "Resault: "+to_string(resault);
-                                    operation = "";
-                                    write(client_sock , temp.c_str(), temp.length());
-                                    for (int i = 0; i < 200; i++){
-                                        client_message[i] = '\0';
-                                    }
-                                    continue;
-                                }
-                            }else{
-                                command = 10;
-                                write(client_sock , "No more operations permited", strlen("No more operations permited"));
-                                for (int i = 0; i < 200; i++){
-                                    client_message[i] = '\0';
-                                }
-                                continue;
-                            }
-                        }
-                    }
-                }else{
-                    cout << client_message << endl;
-                    if (client_message[0] == '+' || client_message[0] == '-' || client_message[0] == '*' || client_message[0] == '/'){
-                        operation = client_message[0];
-                        for (int i = 0; i < 200; i++){
-                            client_message[i] = '\0';
-                        }
-                        write(client_sock , "Enter next value", strlen("Enter next value"));
-                        continue;
-                    }else{
-                        if (!strcmp(client_message, "end")){
-                            command = 10;
-                            write(client_sock , "Calculating completed", strlen("Calculating completed"));
-                            first_number = 0;
-                            second_number = 0;
-                            resault = 0;
-                            for (int i = 0; i < 200; i++){
-                                client_message[i] = '\0';
-                            }
-                            continue;
-                        }else{
-                            write(client_sock , "Wrong operation or value - try again", strlen("Wrong operation or value. Try again"));
-                            for (int i = 0; i < 200; i++){
-                                client_message[i] = '\0';
-                            }
-                            continue;
-                        }
-                    }
-                }
-                break;
-
-            case 10:
-                printf ("%d: %s %d %d\n", __LINE__, client_message, command, client_actions[client_message]);
-                switch (client_actions[client_message]) {
-                case 0:
-                    command = 0;
-                    write(client_sock , "Enter your login: " , strlen("Enter your login: "));
-                    for (int i = 0; i < 200; i++){
-                        client_message[i] = '\0';
-                    }
-                    break;
-                case 2:
-                    if (client_login == ""){
-                        write(client_sock , "Enter your login before!" , strlen("Enter your login before!"));
-                        for (int i = 0; i < 200; i++){
-                            client_message[i] = '\0';
-                        }
-                    }else{
-                        command = 2;
-                        write(client_sock , "Enter your password: " , strlen("Enter your password: "));
-                        for (int i = 0; i < 200; i++){
-                            client_message[i] = '\0';
-                        }
-                    }
-                    break;
-                case 1:
-                    write(client_sock , "Bye-bye" , strlen("Bye-bye"));
-                    close(client_sock);
-                    break;
-                case 3:
-                    if (client_login == "" || client_pass == ""){
-                        write(client_sock , "Enter your login/pass before!" , strlen("Enter your login/pass before!"));
-                        for (int i = 0; i < 200; i++){
-                            client_message[i] = '\0';
-                        }
-                    }else{
-                        command = 3;
-                        resault = 0;
-                        write(client_sock , "Enter value: " , strlen("Enter value: "));
-                        for (int i = 0; i < 200; i++){
-                            client_message[i] = '\0';
-                        }
-                    }
-                    break;
-
-                default:
-                    write(client_sock , "Wrong command! Try again." , strlen("Wrong command! Try again."));
-                    for (int i = 0; i < 200; i++){
-                        client_message[i] = '\0';
-                    }
-                    break;
-                }
-            }
-        }
-
         if(read_size == 0)
         {
             puts("Client disconnected");
@@ -305,6 +122,250 @@ int main(int argc, char *argv[])
     return 0;
 }
 
+void *connection_handler(void *socket_desc){
+
+    map<string,int> client_actions; //map for convert chars.....
+    client_actions.insert(pair<string,int>("login", 0));
+    client_actions.insert(pair<string,int>("logout", 1));
+    client_actions.insert(pair<string,int>("password", 2));
+    client_actions.insert(pair<string,int>("calc", 3));
+
+    //Get the socket descriptor
+    int client_sock = *(int*)socket_desc;
+    int read_size;
+    char *message , client_message[2000];
+
+    //Receive a message from client
+    int command = 10;
+    string client_login = "";
+    string client_pass = "";
+    double first_number = 0;
+    double second_number = 0;
+    double resault = 0;
+    string operation;
+    cout << "Enter to while0" << endl;
+    while( (read_size = recv(client_sock , client_message , 2000 , 0)) > 0 ){
+        printf ("Current command: \t%d\n", command);
+        printf ("Client send: \t%s \t%d\n", client_message, client_actions.count(client_message)); //for debug and see what client send to server
+
+        switch (command){
+        case 0:
+            client_login = client_message;
+            if (check_login(client_login)){
+                command = 10;
+                message = "Login: OK";
+                write(client_sock, message, strlen(message));
+                for (int i = 0; i < 200; i++){
+                    client_message[i] = '\0';
+                }
+                continue;
+            }else{
+                client_login = "";
+                message = "Login: FAIL. Try again.";
+                write(client_sock ,  message, strlen(message));
+                for (int i = 0; i < 200; i++){
+                    client_message[i] = '\0';
+                }
+            }
+            break;
+        case 1:
+            break;
+        case 2:
+            client_pass = client_message;
+            if (check_pass(client_pass) == 1){
+                command = 10;
+                message = "Password: OK";
+                write(client_sock, message, strlen(message));
+                for (int i = 0; i < 200; i++){
+                    client_message[i] = '\0';
+                }
+                continue;
+            }else{
+                client_login = "";
+                message = "Password: FAIL. Try again.";
+                write(client_sock, message, strlen(message));
+                for (int i = 0; i < 200; i++){
+                    client_message[i] = '\0';
+                }
+            }
+            break;
+        case 3:
+            printf ("%d: first: %f, operation %c second: %f, result: %f, %d\n", __LINE__, first_number, operation[0], second_number, resault, isdigit(client_message[0]));
+            if (isdigit( client_message[0]) || (client_message[0] == '-' && isdigit(client_message[1]))){
+                if (first_number == 0){
+                    first_number = atof(client_message);
+                    for (int i = 0; i < 200; i++){
+                        client_message[i] = '\0';
+                    }
+                    message = "Enter operation";
+                    write(client_sock, message, strlen(message));
+                    continue;
+                }else{
+                    if (second_number == 0){
+                        second_number = atof(client_message);
+                        if (operation == "+")resault = first_number + second_number;
+                        if (operation == "-")resault = first_number - second_number;
+                        if (operation == "*")resault = first_number * second_number;
+                        if (operation == "/")resault = first_number / second_number;
+                        if (check_count(client_login, client_pass) == 0){
+                            if (do_calc(client_login, client_pass, first_number, second_number, operation[0], resault) == 0){
+                                string temp = "Resault: "+to_string(resault);
+                                operation = "";
+                                write(client_sock , temp.c_str(), temp.length());
+                                for (int i = 0; i < 200; i++){
+                                    client_message[i] = '\0';
+                                }
+                                continue;
+                            }
+                        }else{
+                            command = 10;
+                            message = "No more operations permited";
+                            write(client_sock, message, strlen(message));
+                            for (int i = 0; i < 200; i++){
+                                client_message[i] = '\0';
+                            }
+                            continue;
+                        }
+                    }
+                    else{
+                        first_number = resault;
+                        second_number = atof(client_message);
+                        if (operation == "+")resault = first_number + second_number;
+                        if (operation == "-")resault = first_number - second_number;
+                        if (operation == "*")resault = first_number * second_number;
+                        if (operation == "/")resault = first_number / second_number;
+                        if (check_count(client_login, client_pass) == 0){
+                            if (do_calc(client_login, client_pass, first_number, second_number, operation[0], resault) == 0){
+                                string temp = "Resault: "+to_string(resault);
+                                operation = "";
+                                write(client_sock , temp.c_str(), temp.length());
+                                for (int i = 0; i < 200; i++){
+                                    client_message[i] = '\0';
+                                }
+                                continue;
+                            }
+                        }else{
+                            command = 10;
+                            message = "No more operations permited";
+                            write(client_sock, message, strlen(message));
+                            for (int i = 0; i < 200; i++){
+                                client_message[i] = '\0';
+                            }
+                            continue;
+                        }
+                    }
+                }
+            }else{
+                cout << client_message << endl;
+                if (client_message[0] == '+' || client_message[0] == '-' || client_message[0] == '*' || client_message[0] == '/'){
+                    operation = client_message[0];
+                    for (int i = 0; i < 200; i++){
+                        client_message[i] = '\0';
+                    }
+                    message = "Enter next value";
+                    write(client_sock, message, strlen(message));
+                    continue;
+                }else{
+                    if (!strcmp(client_message, "end")){
+                        command = 10;
+                        message = "Calculating completed";
+                        write(client_sock, message, strlen(message));
+                        first_number = 0;
+                        second_number = 0;
+                        resault = 0;
+                        for (int i = 0; i < 200; i++){
+                            client_message[i] = '\0';
+                        }
+                        continue;
+                    }else{
+                        message = "Wrong operation or value - try again";
+                        write(client_sock, message, strlen(message));
+                        for (int i = 0; i < 200; i++){
+                            client_message[i] = '\0';
+                        }
+                        continue;
+                    }
+                }
+            }
+            break;
+
+        case 10:
+            printf ("%d: %s %d %d\n", __LINE__, client_message, command, client_actions[client_message]);
+            switch (client_actions[client_message]) {
+            case 0:
+                command = 0;
+                message = "Enter your login: ";
+                write(client_sock, message, strlen(message));
+                for (int i = 0; i < 200; i++){
+                    client_message[i] = '\0';
+                }
+                break;
+            case 2:
+                if (client_login == ""){
+                    message = "Enter your login before!";
+                    write(client_sock, message, strlen(message));
+                    for (int i = 0; i < 200; i++){
+                        client_message[i] = '\0';
+                    }
+                }else{
+                    command = 2;
+                    message = "Enter your password: ";
+                    write(client_sock, message, strlen(message));
+                    for (int i = 0; i < 200; i++){
+                        client_message[i] = '\0';
+                    }
+                }
+                break;
+            case 1:
+                message = "Bye-bye";
+                write(client_sock, message, strlen(message));
+                close(client_sock);
+                break;
+            case 3:
+                if (client_login == "" || client_pass == ""){
+                    message = "Enter your login/pass before!";
+                    write(client_sock, message, strlen(message));
+                    for (int i = 0; i < 200; i++){
+                        client_message[i] = '\0';
+                    }
+                }else{
+                    command = 3;
+                    resault = 0;
+                    message = "Enter value: ";
+                    write(client_sock, message, strlen(message));
+                    for (int i = 0; i < 200; i++){
+                        client_message[i] = '\0';
+                    }
+                }
+                break;
+
+            default:
+                message = "Wrong command! Try again.";
+                write(client_sock, message, strlen(message));
+                for (int i = 0; i < 200; i++){
+                    client_message[i] = '\0';
+                }
+                break;
+            }
+        }
+    }
+
+    if(read_size == 0)
+    {
+        puts("Client disconnected");
+        fflush(stdout);
+    }
+    else if(read_size == -1)
+    {
+        perror("recv failed");
+    }
+
+    //Free the socket pointer
+    close(client_sock);
+    free(socket_desc);
+
+    //return 0;
+}
 
 void open_connect(){
     try {

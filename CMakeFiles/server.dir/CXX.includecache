@@ -1,0 +1,40 @@
+#IncludeRegexLine: ^[ 	]*#[ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/defender/projects/net-calc/server.cpp
+stdlib.h
+-
+stdio.h
+-
+iostream
+-
+mysql_driver.h
+/home/defender/projects/net-calc/mysql_driver.h
+mysql_connection.h
+/home/defender/projects/net-calc/mysql_connection.h
+string
+-
+sys/socket.h
+-
+arpa/inet.h
+-
+unistd.h
+-
+cstring
+-
+pthread.h
+-
+cppconn/driver.h
+-
+cppconn/exception.h
+-
+cppconn/resultset.h
+-
+cppconn/statement.h
+-
+

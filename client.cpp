@@ -4,15 +4,23 @@
 #include <sys/socket.h>    //socket
 #include <arpa/inet.h> //inet_addr
 #include <unistd.h>    //
+#include <stdlib.h>
+#include <iostream>
 
 using namespace std;
 
 char server_addr[16]= "127.0.0.1";
-int server_port = 6666;
+int server__port = 6666;
 
 
 int main(int argc , char *argv[])
 {
+    if (argc > 1){
+        if (string(argv[1]) == "-p"){
+            server__port = atoi(argv[2]);
+        }
+    }
+    printf ("%d\n", server__port);
     int sock;
     struct sockaddr_in server;
     char message[2000] , server_reply[2000];
@@ -27,7 +35,7 @@ int main(int argc , char *argv[])
 
     server.sin_addr.s_addr = inet_addr(server_addr);
     server.sin_family = AF_INET;
-    server.sin_port = htons( server_port );
+    server.sin_port = htons( server__port );
 
     //Connect to remote server
     if (connect(sock , (struct sockaddr *)&server , sizeof(server)) < 0)
